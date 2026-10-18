@@ -8,11 +8,12 @@ const json = (body, status = 200) =>
 
 export default async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  const expected = Netlify.env.get("RESET_PIN");
-  if (!expected) return json({ error: "Reset isn't set up." }, 500);
+  const PIN_HASH = "49aa07d926840bafe0cff28ce8688abab4260fb59fc65c51bd7649963cc4e69f";
   let body;
   try { body = await req.json(); } catch { return json({ error: "Bad request" }, 400); }
-  if (String(body.pin || "") !== expected) return json({ error: "Wrong PIN." }, 403);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("chili-cookoff:" + String(body.pin || "")));
+  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  if (hex !== PIN_HASH) return json({ error: "Wrong PIN." }, 403);
   const store = getStore({ name: "chili-ballots-r2", consistency: "strong" });
   const { blobs } = await store.list();
   await Promise.all(blobs.map((b) => store.delete(b.key)));
