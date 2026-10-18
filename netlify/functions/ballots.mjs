@@ -8,7 +8,7 @@ const json = (body, status = 200) =>
   });
 
 export default async (req) => {
-  const store = getStore({ name: "chili-ballots", consistency: "strong" });
+  const store = getStore({ name: "chili-ballots-r2", consistency: "strong" });
 
   if (req.method === "GET") {
     const { blobs } = await store.list();
