@@ -31,8 +31,9 @@ export default async (req) => {
         return json({ error: "Score every chili from 1 to 10." }, 400);
       ballot[c] = n;
     }
-    const { modified } = await store.setJSON(initials, ballot, body.replace ? {} : { onlyIfNew: true });
-    if (!modified) return json({ error: "duplicate", initials }, 409);
+    if (!body.replace && (await store.getMetadata(initials)))
+      return json({ error: "duplicate", initials }, 409);
+    await store.setJSON(initials, ballot);
     return json({ ok: true, ballot });
   }
 
