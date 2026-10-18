@@ -1,0 +1,56 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chili Cook-Off Host</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Work+Sans:wght@400;500;600;700&display=swap">
+
+<style>body{margin:0}[hidden]{display:none!important}
+#pin{font:700 1.8rem/1 var(--body);letter-spacing:.4em;padding:12px;border:2px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:7ch;text-align:center}
+#pin:focus{outline:none;border-color:var(--chili)}
+a{color:var(--chili);font-weight:600}</style>
+</head><body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Chili Cook-Off · Host only</div>
+    <h1>Host controls</h1>
+    <p>Close voting to reveal the results. Reopen to let more people vote.</p>
+  </header>
+  <form class="ballot" id="f" novalidate>
+    <label class="init" for="pin">Host PIN
+      <input id="pin" inputmode="numeric" maxlength="8" autocomplete="off">
+    </label>
+    <div id="status" class="eyebrow">Enter the PIN to see the poll status</div>
+    <div class="row-btns">
+      <button type="button" class="btn" id="close">Close voting &amp; reveal</button>
+      <button type="button" class="btn ghost" id="open">Reopen voting</button>
+    </div>
+    <button type="button" class="btn ghost" id="reset">Reset all votes</button>
+    <div id="msg" class="msg" hidden></div>
+  </form>
+  <a href="/">Back to the ballot</a>
+</div>
+<script>
+const $=id=>document.getElementById(id); let armed=false;
+const say=t=>{$("msg").textContent=t;$("msg").hidden=false;};
+function setStatus(open){$("status").textContent=open?"Status: voting open, results hidden":"Status: voting closed, results showing";}
+async function host(action){
+  const pin=$("pin").value.trim();
+  if(!pin){say("Enter the host PIN.");return null;}
+  try{
+    const r=await fetch("/api/host",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({pin,action})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){say(j.error||"That didn’t work. Try again.");return null;}
+    if("open" in j) setStatus(j.open);
+    return j;
+  }catch{say("No connection. Try again.");return null;}
+}
+$("pin").addEventListener("input",e=>{if(e.target.value.length===4) host("check").then(j=>j&&($("msg").hidden=true));});
+$("close").onclick=async()=>{const j=await host("close"); if(j) say("Voting closed. Results are showing on the ballot page.");};
+$("open").onclick=async()=>{const j=await host("open"); if(j) say("Voting reopened. Results are hidden again.");};
+$("reset").onclick=async()=>{
+  if(!armed){armed=true;$("reset").textContent="Tap again to erase all ballots";return;}
+  armed=false;$("reset").textContent="Reset all votes";
+  const j=await host("reset"); if(j) say(`Cleared ${j.cleared} ballot${j.cleared===1?"":"s"}. Voting is open.`);
+};
+$("f").addEventListener("submit",e=>e.preventDefault());
+</script>
+</body></html>

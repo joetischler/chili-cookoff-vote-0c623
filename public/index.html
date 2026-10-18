@@ -82,8 +82,9 @@ label.init{display:grid;gap:6px;font-weight:600}
   </section>
   <div id="readOnly" class="msg" hidden></div>
 
+  <div id="closedNote" class="msg" hidden>Voting is closed. Final results are below.</div>
   <section id="standings">
-    <h2>Standings</h2>
+    <h2 id="standTitle">Standings</h2>
     <div class="board" id="board"><div class="msg">Loading scores…</div></div>
     <div class="voters" id="voters"></div>
   </section>
@@ -97,7 +98,7 @@ const CHILIS=[
   {id:"andy",name:"Andy",kind:"Vegetarian",veg:true},
 ];
 const $=s=>document.querySelector(s);
-const scores={}; let ballots=[]; let pending=null; let busy=false;
+const scores={}; let ballots=[]; let voters=[]; let open=true; let pending=null; let busy=false;
 
 function renderEntries(){
   $("#entries").innerHTML="";
@@ -133,7 +134,8 @@ async function save(init,replace){
     if(r.status===409){
       pending=init; showMsg(`${init} already voted. Replace that ballot with this one?`);
       $("#confirmRow").hidden=false; $("#submit").hidden=true;
-    }else if(!r.ok){ showMsg(j.error||"That ballot didn’t save. Submit again."); }
+    }else if(r.status===423){ showMsg("Voting just closed. Your ballot wasn’t counted."); load(); }
+    else if(!r.ok){ showMsg(j.error||"That ballot didn’t save. Submit again."); }
     else{
       CHILIS.forEach(c=>delete scores[c.id]); $("#initials").value=""; renderEntries();
       showMsg(`Thanks, ${init}. Your ballot is in.`); load();
@@ -146,7 +148,18 @@ $("#ballot").addEventListener("submit",e=>{e.preventDefault(); save(cleanInit(),
 $("#cancelOverwrite").onclick=()=>{hideMsg(); pending=null;};
 $("#confirmOverwrite").onclick=()=>{hideMsg(); save(pending,true); pending=null;};
 
+function renderVoters(){
+  const v=$("#voters"); const n=voters.length;
+  v.textContent=n?`${n} ballot${n===1?"":"s"} in: `:"";
+  voters.forEach(i=>{const s=document.createElement("span"); s.textContent=i; v.appendChild(s);});
+}
 function renderBoard(){
+  $("#voteSec").hidden=!open; $("#closedNote").hidden=open;
+  $("#standTitle").textContent=open?"Who’s voted":"Final results";
+  if(open){
+    $("#board").innerHTML=`<div class="msg">${voters.length?"Scores stay hidden until the host closes voting.":"No ballots yet. Scores stay hidden until the host closes voting."}</div>`;
+    renderVoters(); return;
+  }
   const n=ballots.length;
   if(!n){$("#board").innerHTML='<div class="msg">No ballots yet. The first judge’s scores will show up here.</div>'; $("#voters").textContent=""; return;}
   const rows=CHILIS.map(c=>{const t=ballots.reduce((s,b)=>s+(+b[c.id]||0),0); return {...c,total:t,avg:t/n};})
@@ -164,11 +177,10 @@ function renderBoard(){
     el.querySelector(".score small").textContent=`${r.total} pts`;
     $("#board").appendChild(el);
   });
-  const v=$("#voters"); v.textContent=`${n} ballot${n===1?"":"s"}: `;
-  ballots.slice().sort((a,b)=>a.at-b.at).forEach(b=>{const s=document.createElement("span"); s.textContent=b.initials; v.appendChild(s);});
+  renderVoters();
 }
 async function load(){
-  try{ const r=await fetch("/api/ballots",{cache:"no-store"}); const j=await r.json(); ballots=j.ballots||[]; renderBoard(); }
+  try{ const r=await fetch("/api/ballots",{cache:"no-store"}); const j=await r.json(); open=j.open!==false; voters=j.voters||[]; ballots=j.ballots||[]; renderBoard(); }
   catch{ if(!ballots.length) $("#board").innerHTML='<div class="msg">Couldn’t load scores. Pull to refresh.</div>'; }
 }
 renderEntries(); validate(); load(); setInterval(load,5000);

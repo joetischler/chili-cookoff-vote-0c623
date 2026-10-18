@@ -9,16 +9,21 @@ const json = (body, status = 200) =>
 
 export default async (req) => {
   const store = getStore({ name: "chili-ballots-r2", consistency: "strong" });
+  const meta = getStore({ name: "chili-poll", consistency: "strong" });
+  const state = (await meta.get("state", { type: "json" })) || { open: true };
 
   if (req.method === "GET") {
     const { blobs } = await store.list();
     const ballots = (
       await Promise.all(blobs.map((b) => store.get(b.key, { type: "json" })))
     ).filter(Boolean);
-    return json({ ballots });
+    const voters = ballots.sort((a, b) => a.at - b.at).map((b) => b.initials);
+    // Scores stay server-side while the poll is open.
+    return json(state.open ? { open: true, voters } : { open: false, voters, ballots });
   }
 
   if (req.method === "POST") {
+    if (!state.open) return json({ error: "Voting is closed." }, 423);
     let body;
     try { body = await req.json(); } catch { return json({ error: "Bad request" }, 400); }
     const initials = String(body.initials || "").toUpperCase().replace(/[^A-Z]/g, "");
